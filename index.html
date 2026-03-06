@@ -605,13 +605,13 @@
         <input type="text" id="chatId" placeholder="-100123456789 ou 123456789" />
       </div>
       <div class="field">
-        <label>📰 Fonte de notícias</label>
+        <label>🌐 Foco das notícias</label>
         <select id="newsSource">
-          <option value="investing">Investing.com (Global)</option>
-          <option value="reuters">Reuters Business</option>
-          <option value="marketwatch">MarketWatch</option>
-          <option value="bloomberg">Bloomberg Markets</option>
-          <option value="b3">Infomoney (Brasil)</option>
+          <option value="global">Mercado global</option>
+          <option value="brasil">Brasil / B3</option>
+          <option value="geopolitica">Guerras e geopolítica</option>
+          <option value="commodities">Commodities</option>
+          <option value="tech">Tecnologia e IA</option>
         </select>
       </div>
       <div class="field">
@@ -621,6 +621,24 @@
           <option value="180000" selected>3 minutos</option>
           <option value="300000">5 minutos</option>
           <option value="600000">10 minutos</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>🎯 Confiança mínima para alertar</label>
+        <select id="minConfidence">
+          <option value="50">50% — Alertar tudo</option>
+          <option value="65" selected>65% — Recomendado</option>
+          <option value="75">75% — Alta confiança</option>
+          <option value="85">85% — Muito alta</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>📲 Tipo de alerta Telegram</label>
+        <select id="alertType">
+          <option value="both">📈📉 Alta e Queda juntos</option>
+          <option value="separate">Separar em msgs diferentes</option>
+          <option value="up">📈 Apenas Alta</option>
+          <option value="down">📉 Apenas Queda</option>
         </select>
       </div>
     </div>
@@ -830,20 +848,33 @@ async function sendTelegram(token, chatId, message) {
   }
 }
 
-function buildTelegramMessage(newsItem) {
+function buildTelegramMessage(newsItem, dirFilter = 'both') {
   const impactEmoji = { high: '🔴', medium: '🟡', low: '🟢' };
+  const minConf = parseInt(document.getElementById('minConfidence').value);
+
+  // Filtra empresas por direção e confiança mínima
+  const companies = newsItem.companies.filter(c => {
+    if (c.confidence < minConf) return false;
+    if (dirFilter === 'up')   return c.direction === 'up';
+    if (dirFilter === 'down') return c.direction === 'down';
+    return true;
+  });
+
+  if (companies.length === 0) return null;
+
+  const dirLabel = dirFilter === 'up' ? '📈 ALERTAS DE ALTA' : dirFilter === 'down' ? '📉 ALERTAS DE QUEDA' : '🎯 Ações impactadas';
   const lines = [];
-  lines.push(`📡 <b>StockPulse — Alerta de Mercado ${impactEmoji[newsItem.impact] || ''}</b>`);
+  lines.push(`📡 <b>StockPulse ${impactEmoji[newsItem.impact] || ''}</b>`);
   lines.push('');
   lines.push(`📰 <b>${newsItem.title}</b>`);
   lines.push(`<i>Fonte: ${newsItem.source}</i>`);
   lines.push('');
   lines.push(`📊 ${newsItem.summary}`);
   lines.push('');
-  lines.push('<b>🎯 Ações impactadas:</b>');
-  for (const c of newsItem.companies) {
+  lines.push(`<b>${dirLabel}:</b>`);
+  for (const c of companies) {
     const arrow = c.direction === 'up' ? '📈' : '📉';
-    const dir = c.direction === 'up' ? 'POSSÍVEL ALTA' : 'POSSÍVEL QUEDA';
+    const dir   = c.direction === 'up' ? 'POSSÍVEL ALTA' : 'POSSÍVEL QUEDA';
     lines.push(`${arrow} <b>${c.ticker}</b> (${c.name}) — ${dir}`);
     lines.push(`   ${c.confidence}% confiança • ${c.reason}`);
   }
@@ -935,24 +966,46 @@ async function scanNow() {
       if (list.children.length > 20) list.removeChild(list.lastChild);
 
       if (item.relevant && item.companies.length > 0) {
-        if (item.companies.some(c => c.direction === 'up')) stats.up++;
-        if (item.companies.some(c => c.direction === 'down')) stats.down++;
+        const minConf = parseInt(document.getElementById('minConfidence').value);
+        const alertType = document.getElementById('alertType').value;
+
+        // Filtra por confiança mínima
+        const qualified = item.companies.filter(c => c.confidence >= minConf);
+        if (qualified.length === 0) {
+          log(`  → Confiança abaixo de ${minConf}%, ignorando.`);
+          continue;
+        }
+
+        if (qualified.some(c => c.direction === 'up')) stats.up++;
+        if (qualified.some(c => c.direction === 'down')) stats.down++;
         updateStats();
 
         if (token && chatId) {
-          const msg = buildTelegramMessage(item);
-          const sent = await sendTelegram(token, chatId, msg);
-          if (sent) {
-            stats.sent++;
-            updateStats();
-            const box = card.querySelector('.analysis-box');
-            if (box) {
-              const el = document.createElement('div');
-              el.className = 'telegram-sent';
-              el.innerHTML = '✅ Alerta enviado ao Telegram';
-              box.appendChild(el);
+          if (alertType === 'separate') {
+            // Envia msg de alta separada
+            const msgUp = buildTelegramMessage(item, 'up');
+            if (msgUp) {
+              const sent = await sendTelegram(token, chatId, msgUp);
+              if (sent) { stats.sent++; updateStats(); log(`✅ Alerta de ALTA enviado: ${item.title.slice(0,35)}...`, 'success'); }
             }
-            log(`✅ Alerta enviado: ${item.title.slice(0,40)}...`, 'success');
+            // Envia msg de queda separada
+            const msgDown = buildTelegramMessage(item, 'down');
+            if (msgDown) {
+              const sent = await sendTelegram(token, chatId, msgDown);
+              if (sent) { stats.sent++; updateStats(); log(`✅ Alerta de QUEDA enviado: ${item.title.slice(0,35)}...`, 'success'); }
+            }
+          } else {
+            const msg = buildTelegramMessage(item, alertType);
+            if (msg) {
+              const sent = await sendTelegram(token, chatId, msg);
+              if (sent) {
+                stats.sent++;
+                updateStats();
+                const box = card.querySelector('.analysis-box');
+                if (box) { const el = document.createElement('div'); el.className = 'telegram-sent'; el.innerHTML = '✅ Alerta enviado ao Telegram'; box.appendChild(el); }
+                log(`✅ Alerta enviado: ${item.title.slice(0,40)}...`, 'success');
+              }
+            }
           }
         } else {
           log('⚠️ Configure Token e Chat ID para enviar alertas', 'info');
