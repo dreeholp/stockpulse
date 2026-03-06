@@ -593,8 +593,8 @@
     <h2>⚙️ Configuração</h2>
     <div class="config-grid">
       <div class="field" style="grid-column: span 2">
-        <label>🔑 Chave da API Google Gemini (gratuita)</label>
-        <input type="password" id="geminiKey" placeholder="AIzaSy..." />
+        <label>🔑 Chave da API OpenRouter (gratuita)</label>
+        <input type="password" id="geminiKey" placeholder="sk-or-v1-..." />
       </div>
       <div class="field">
         <label>🤖 Token do Bot Telegram</label>
@@ -632,10 +632,10 @@
       3. Para o Chat ID: converse com <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a> para grupos ou <a href="https://t.me/RawDataBot" target="_blank">@RawDataBot</a>
     </div>
     <div class="help-text" style="margin-bottom:16px; border-color: rgba(0,229,160,0.2); background: rgba(0,229,160,0.03)">
-      🔑 <strong>Chave Google Gemini (100% gratuita):</strong><br>
-      1. Acesse <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> → faça login com sua conta Google<br>
-      2. Clique em <strong>Create API Key</strong> → copie a chave<br>
-      A chave começa com <code style="color:var(--accent)">AIzaSy...</code> — sem cartão de crédito necessário ✅
+      🔑 <strong>Chave OpenRouter (100% gratuita, sem cartão):</strong><br>
+      1. Acesse <a href="https://openrouter.ai" target="_blank">openrouter.ai</a> → <strong>Sign in</strong> com Google ou GitHub<br>
+      2. Vá em <a href="https://openrouter.ai/settings/keys" target="_blank">openrouter.ai/settings/keys</a> → <strong>Create Key</strong><br>
+      3. Copie a chave — começa com <code style="color:var(--accent)">sk-or-v1-...</code> ✅
     </div>
 
     <div class="btn-row">
@@ -779,30 +779,31 @@ Responda SOMENTE com JSON válido, sem markdown, sem texto fora do JSON:
   ]
 }`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${geminiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ google_search_retrieval: { dynamic_retrieval_config: { mode: "MODE_DYNAMIC", dynamic_threshold: 0.3 } } }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2500 }
-      })
-    }
-  );
+  const apiKey = document.getElementById('geminiKey').value.trim();
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': window.location.href,
+      'X-Title': 'StockPulse'
+    },
+    body: JSON.stringify({
+      model: 'meta-llama/llama-3.3-70b-instruct:free',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 2500
+    })
+  });
 
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
 
-  // Gemini pode retornar múltiplos parts quando usa search — pega todos os textos
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  const fullText = parts.map(p => p.text || '').join('');
+  const fullText = data.choices?.[0]?.message?.content || '{}';
   const clean = fullText.replace(/```json|```/g, '').trim();
-
-  // Extrai só o JSON (às vezes vem com texto antes/depois)
   const jsonMatch = clean.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('Gemini não retornou JSON válido');
+  if (!jsonMatch) throw new Error('IA não retornou JSON válido');
   return JSON.parse(jsonMatch[0]);
 }
 
