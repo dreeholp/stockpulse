@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockPulse — Alertas de Ações com IA</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060a0f;
+    --panel: #0c1219;
+    --border: #1a2535;
+    --accent: #00e5a0;
+    --accent2: #ff4d6d;
+    --accent3: #ffd166;
+    --text: #c8d8e8;
+    --muted: #4a6080;
+    --up: #00e5a0;
+    --down: #ff4d6d;
+    --neutral: #ffd166;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--accent), #00b37a);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 20px rgba(0,229,160,0.3);
+  }
+
+  .logo-text h1 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+
+  .logo-text span {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--panel);
+  }
+
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+  .dot.active {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Config panel */
+  .config-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+
+  .config-panel h2 {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 600px) {
+    .config-grid { grid-template-columns: 1fr; }
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .field input, .field select {
+    background: rgba(0,229,160,0.04);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+    background: rgba(0,229,160,0.07);
+  }
+
+  .field input::placeholder { color: var(--muted); }
+
+  .field select option { background: #0c1219; }
+
+  .help-text {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    line-height: 1.6;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: rgba(255,209,102,0.03);
+    border-color: rgba(255,209,102,0.2);
+  }
+
+  .help-text a { color: var(--accent3); text-decoration: none; }
+  .help-text a:hover { text-decoration: underline; }
+
+  /* Buttons */
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    padding: 12px 24px;
+    border-radius: 10px;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-primary:hover { background: #00ffb3; box-shadow: 0 0 20px rgba(0,229,160,0.4); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid rgba(255,77,109,0.3);
+  }
+  .btn-danger:hover { background: rgba(255,77,109,0.1); }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 600px) {
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+
+  .stat-card .stat-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 8px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  .stat-card.up .stat-value { color: var(--up); }
+  .stat-card.down .stat-value { color: var(--down); }
+
+  /* News feed */
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .news-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .news-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    animation: slideIn 0.4s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .news-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+
+  .news-card.analyzing::before { background: var(--neutral); }
+  .news-card.bullish::before { background: var(--up); }
+  .news-card.bearish::before { background: var(--down); }
+  .news-card.neutral::before { background: var(--muted); }
+
+  .news-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .news-source {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  .news-time {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-left: auto;
+  }
+
+  .news-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.4;
+    margin-bottom: 12px;
+  }
+
+  .news-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .news-title a:hover { color: var(--accent); }
+
+  .analysis-box {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 10px;
+  }
+
+  .analysis-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--neutral);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,209,102,0.2);
+    border-top-color: var(--neutral);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .analysis-result {}
+
+  .tickers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .ticker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .ticker.up {
+    background: rgba(0,229,160,0.12);
+    border: 1px solid rgba(0,229,160,0.3);
+    color: var(--up);
+  }
+
+  .ticker.down {
+    background: rgba(255,77,109,0.12);
+    border: 1px solid rgba(255,77,109,0.3);
+    color: var(--down);
+  }
+
+  .ticker.neutral {
+    background: rgba(255,209,102,0.08);
+    border: 1px solid rgba(255,209,102,0.2);
+    color: var(--neutral);
+  }
+
+  .analysis-summary {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .confidence-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .confidence-label {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    min-width: 80px;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.8s ease;
+  }
+
+  .telegram-sent {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    margin-top: 10px;
+  }
+
+  /* Alerts log */
+  .alerts-log {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+
+  .alerts-log-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .alerts-log-header span {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+  }
+
+  .log-entries {
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+  }
+
+  .log-entry {
+    padding: 10px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+    line-height: 1.5;
+  }
+
+  .log-entry .time { color: rgba(255,255,255,0.2); min-width: 70px; }
+  .log-entry.success .msg { color: var(--up); }
+  .log-entry.error .msg { color: var(--down); }
+  .log-entry.info .msg { color: var(--neutral); }
+  .log-entry.normal .msg { color: var(--text); }
+
+  .log-entries::-webkit-scrollbar { width: 4px; }
+  .log-entries::-webkit-scrollbar-track { background: transparent; }
+  .log-entries::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-state h3 { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; line-height: 1.6; }
+
+  /* Interval selector */
+  .interval-pills {
+    display: flex;
+    gap: 6px;
+  }
+
+  .pill {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: transparent;
+    transition: all 0.2s;
+  }
+
+  .pill.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">📡</div>
+      <div class="logo-text">
+        <h1>StockPulse</h1>
+        <span>Alertas de ações com IA</span>
+      </div>
+    </div>
+    <div class="status-badge">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Aguardando configuração</span>
+    </div>
+  </header>
+
+  <!-- Config -->
+  <div class="config-panel">
+    <h2>⚙️ Configuração</h2>
+    <div class="config-grid">
+      <div class="field" style="grid-column: span 2">
+        <label>🔑 Chave da API Google Gemini (gratuita)</label>
+        <input type="password" id="geminiKey" placeholder="AIzaSy..." />
+      </div>
+      <div class="field">
+        <label>🤖 Token do Bot Telegram</label>
+        <input type="password" id="telegramToken" placeholder="1234567890:ABC-xyz..." />
+      </div>
+      <div class="field">
+        <label>💬 Seu Chat ID</label>
+        <input type="text" id="chatId" placeholder="-100123456789 ou 123456789" />
+      </div>
+      <div class="field">
+        <label>📰 Fonte de notícias</label>
+        <select id="newsSource">
+          <option value="investing">Investing.com (Global)</option>
+          <option value="reuters">Reuters Business</option>
+          <option value="marketwatch">MarketWatch</option>
+          <option value="bloomberg">Bloomberg Markets</option>
+          <option value="b3">Infomoney (Brasil)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>⏱️ Intervalo de verificação</label>
+        <select id="intervalSelect">
+          <option value="60000">1 minuto</option>
+          <option value="180000" selected>3 minutos</option>
+          <option value="300000">5 minutos</option>
+          <option value="600000">10 minutos</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="help-text" style="margin-bottom:16px">
+      📌 <strong>Como criar seu bot Telegram:</strong><br>
+      1. Abra o Telegram e pesquise <strong>@BotFather</strong><br>
+      2. Digite <strong>/newbot</strong> → dê um nome → copie o token<br>
+      3. Para o Chat ID: converse com <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a> para grupos ou <a href="https://t.me/RawDataBot" target="_blank">@RawDataBot</a>
+    </div>
+    <div class="help-text" style="margin-bottom:16px; border-color: rgba(0,229,160,0.2); background: rgba(0,229,160,0.03)">
+      🔑 <strong>Chave Google Gemini (100% gratuita):</strong><br>
+      1. Acesse <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> → faça login com sua conta Google<br>
+      2. Clique em <strong>Create API Key</strong> → copie a chave<br>
+      A chave começa com <code style="color:var(--accent)">AIzaSy...</code> — sem cartão de crédito necessário ✅
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="startBtn" onclick="startMonitoring()">▶ Iniciar Monitoramento</button>
+      <button class="btn btn-danger" id="stopBtn" onclick="stopMonitoring()" style="display:none">⏹ Parar</button>
+      <button class="btn btn-secondary" onclick="testTelegram()">📲 Testar Telegram</button>
+      <button class="btn btn-secondary" onclick="scanNow()">🔍 Buscar Agora</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">Notícias analisadas</div>
+      <div class="stat-value" id="statTotal">0</div>
+    </div>
+    <div class="stat-card up">
+      <div class="stat-label">Alertas de alta 📈</div>
+      <div class="stat-value" id="statUp">0</div>
+    </div>
+    <div class="stat-card down">
+      <div class="stat-label">Alertas de queda 📉</div>
+      <div class="stat-value" id="statDown">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Msgs enviadas</div>
+      <div class="stat-value" id="statSent">0</div>
+    </div>
+  </div>
+
+  <!-- News Feed -->
+  <div class="section-header">
+    <div class="section-title" style="margin:0">📰 Feed de Notícias</div>
+  </div>
+
+  <div class="news-list" id="newsList">
+    <div class="empty-state">
+      <div class="icon">📡</div>
+      <h3>Monitoramento não iniciado</h3>
+      <p>Configure seu Bot do Telegram acima e clique em <strong>Iniciar Monitoramento</strong><br>para começar a receber alertas de ações em tempo real.</p>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="alerts-log">
+    <div class="alerts-log-header">
+      <span>📋 Log do Sistema</span>
+      <button class="btn btn-secondary" style="padding:4px 12px;font-size:11px" onclick="clearLog()">Limpar</button>
+    </div>
+    <div class="log-entries" id="logEntries">
+      <div class="log-entry info">
+        <span class="time">--:--:--</span>
+        <span class="msg">Sistema pronto. Configure e inicie o monitoramento.</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────
+let monitorInterval = null;
+let isMonitoring = false;
+let stats = { total: 0, up: 0, down: 0, sent: 0 };
+let seenNewsIds = new Set();
+
+// ─── Log ─────────────────────────────────────────────────
+function log(msg, type = 'normal') {
+  const now = new Date();
+  const t = now.toTimeString().slice(0,8);
+  const el = document.getElementById('logEntries');
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type}`;
+  entry.innerHTML = `<span class="time">${t}</span><span class="msg">${msg}</span>`;
+  el.insertBefore(entry, el.firstChild);
+  if (el.children.length > 100) el.removeChild(el.lastChild);
+}
+
+function clearLog() {
+  document.getElementById('logEntries').innerHTML = '';
+  log('Log limpo.', 'info');
+}
+
+// ─── Stats ───────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('statTotal').textContent = stats.total;
+  document.getElementById('statUp').textContent = stats.up;
+  document.getElementById('statDown').textContent = stats.down;
+  document.getElementById('statSent').textContent = stats.sent;
+}
+
+// ─── Status badge ────────────────────────────────────────
+function setStatus(text, active = false) {
+  document.getElementById('statusText').textContent = text;
+  const dot = document.getElementById('statusDot');
+  dot.className = 'dot' + (active ? ' active' : '');
+}
+
+// ─── Gemini: busca notícias + analisa em uma chamada ─────
+async function fetchAndAnalyzeNews() {
+  const geminiKey = document.getElementById('geminiKey').value.trim();
+
+  const focusMap = {
+    global:      'mercados financeiros globais, bolsas NYSE NASDAQ, economia mundial',
+    brasil:      'mercado brasileiro, B3, Ibovespa, empresas brasileiras, BRL',
+    geopolitica: 'guerras, conflitos armados, sanções internacionais, tensões geopolíticas',
+    commodities: 'petróleo, ouro, gás natural, minério de ferro, soja, commodities',
+    tech:        'tecnologia, inteligência artificial, semicondutores, Nvidia, Apple, Microsoft, Google'
+  };
+  const focus = focusMap[document.getElementById('newsSource').value] || focusMap.global;
+  const now = new Date().toLocaleString('pt-BR');
+
+  const prompt = `Você é um analista financeiro sênior. Data/hora atual: ${now}.
+
+Pesquise e liste as 5 notícias financeiras mais recentes e impactantes das últimas 3 horas relacionadas a: ${focus}.
+
+Para cada notícia, identifique empresas de capital aberto impactadas (incluindo impactos indiretos: guerra→petróleo→Petrobras, juros→bancos, etc).
+
+Responda SOMENTE com JSON válido, sem markdown, sem texto fora do JSON:
+{
+  "news": [
+    {
+      "id": "slug-da-noticia",
+      "title": "título da notícia",
+      "source": "nome do veículo",
+      "summary": "resumo em português, máx 80 palavras",
+      "url": null,
+      "relevant": true,
+      "companies": [
+        {
+          "name": "Nome da Empresa",
+          "ticker": "TICKER",
+          "market": "NYSE",
+          "direction": "up",
+          "reason": "motivo curto em português",
+          "confidence": 80
+        }
+      ],
+      "impact": "high"
+    }
+  ]
+}`;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ google_search_retrieval: { dynamic_retrieval_config: { mode: "MODE_DYNAMIC", dynamic_threshold: 0.3 } } }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2500 }
+      })
+    }
+  );
+
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+
+  // Gemini pode retornar múltiplos parts quando usa search — pega todos os textos
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const fullText = parts.map(p => p.text || '').join('');
+  const clean = fullText.replace(/```json|```/g, '').trim();
+
+  // Extrai só o JSON (às vezes vem com texto antes/depois)
+  const jsonMatch = clean.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Gemini não retornou JSON válido');
+  return JSON.parse(jsonMatch[0]);
+}
+
+// ─── Telegram ────────────────────────────────────────────
+async function sendTelegram(token, chatId, message) {
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML',
+        disable_web_page_preview: false
+      })
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.description);
+    return true;
+  } catch (e) {
+    log(`Erro Telegram: ${e.message}`, 'error');
+    return false;
+  }
+}
+
+function buildTelegramMessage(newsItem) {
+  const impactEmoji = { high: '🔴', medium: '🟡', low: '🟢' };
+  const lines = [];
+  lines.push(`📡 <b>StockPulse — Alerta de Mercado ${impactEmoji[newsItem.impact] || ''}</b>`);
+  lines.push('');
+  lines.push(`📰 <b>${newsItem.title}</b>`);
+  lines.push(`<i>Fonte: ${newsItem.source}</i>`);
+  lines.push('');
+  lines.push(`📊 ${newsItem.summary}`);
+  lines.push('');
+  lines.push('<b>🎯 Ações impactadas:</b>');
+  for (const c of newsItem.companies) {
+    const arrow = c.direction === 'up' ? '📈' : '📉';
+    const dir = c.direction === 'up' ? 'POSSÍVEL ALTA' : 'POSSÍVEL QUEDA';
+    lines.push(`${arrow} <b>${c.ticker}</b> (${c.name}) — ${dir}`);
+    lines.push(`   ${c.confidence}% confiança • ${c.reason}`);
+  }
+  lines.push('');
+  if (newsItem.url) lines.push(`🔗 <a href="${newsItem.url}">Ver notícia</a>`);
+  lines.push(`⏰ ${new Date().toLocaleString('pt-BR')}`);
+  lines.push('<i>⚠️ Não é recomendação de investimento.</i>');
+  return lines.join('\n');
+}
+
+// ─── Render card ─────────────────────────────────────────
+function renderCard(newsItem) {
+  const cardClass = newsItem.relevant && newsItem.companies.length
+    ? (newsItem.companies.some(c => c.direction === 'down') ? 'bearish' : 'bullish')
+    : 'neutral';
+
+  let analysisHTML;
+  if (!newsItem.relevant || !newsItem.companies.length) {
+    analysisHTML = `<div style="font-size:12px;color:var(--muted)">⚪ Sem impacto direto em ações identificado.</div>`;
+  } else {
+    const tickersHTML = newsItem.companies.map(c => {
+      const arrow = c.direction === 'up' ? '▲' : '▼';
+      return `<div class="ticker ${c.direction}">${arrow} ${c.ticker}</div>`;
+    }).join('');
+    const avgConf = Math.round(newsItem.companies.reduce((s,c) => s + c.confidence, 0) / newsItem.companies.length);
+    const confColor = avgConf > 70 ? 'var(--up)' : avgConf > 40 ? 'var(--neutral)' : 'var(--down)';
+    const detailsHTML = newsItem.companies.map(c => {
+      const arrow = c.direction === 'up' ? '📈' : '📉';
+      return `<div style="margin-bottom:6px;font-size:11px;color:var(--text)">${arrow} <b style="font-family:Space Mono,monospace">${c.ticker}</b> (${c.market}) — ${c.reason}</div>`;
+    }).join('');
+    analysisHTML = `
+      <div class="tickers">${tickersHTML}</div>
+      <div class="analysis-summary">${newsItem.summary}</div>
+      <div style="margin-top:10px">${detailsHTML}</div>
+      <div class="confidence-bar">
+        <span class="confidence-label">Confiança</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${avgConf}%;background:${confColor}"></div></div>
+        <span style="font-size:11px;font-family:Space Mono;color:${confColor};min-width:35px">${avgConf}%</span>
+      </div>`;
+  }
+
+  const card = document.createElement('div');
+  card.className = `news-card ${cardClass}`;
+  card.id = 'card_' + newsItem.id.replace(/\W/g,'_');
+  card.innerHTML = `
+    <div class="news-meta">
+      <span class="news-source">${newsItem.source}</span>
+      <span class="news-time">${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
+    </div>
+    <div class="news-title">${newsItem.url ? `<a href="${newsItem.url}" target="_blank">${newsItem.title}</a>` : newsItem.title}</div>
+    <div class="analysis-box">${analysisHTML}</div>`;
+  return card;
+}
+
+// ─── Main scan ───────────────────────────────────────────
+async function scanNow() {
+  log('🔍 Buscando e analisando notícias com Gemini...', 'info');
+  setStatus('Buscando notícias...', true);
+
+  try {
+    const result = await fetchAndAnalyzeNews();
+    const newsItems = result.news || [];
+
+    if (newsItems.length === 0) {
+      log('Nenhuma notícia relevante encontrada.', 'error');
+      setStatus(isMonitoring ? 'Monitorando' : 'Aguardando', isMonitoring);
+      return;
+    }
+
+    log(`${newsItems.length} notícias recebidas do Gemini.`, 'info');
+
+    const list = document.getElementById('newsList');
+    if (list.querySelector('.empty-state')) list.innerHTML = '';
+
+    const token = document.getElementById('telegramToken').value.trim();
+    const chatId = document.getElementById('chatId').value.trim();
+
+    for (const item of newsItems) {
+      // Evita duplicatas
+      if (seenNewsIds.has(item.id)) continue;
+      seenNewsIds.add(item.id);
+
+      stats.total++;
+      updateStats();
+      log(`Notícia: ${item.title.slice(0,60)}...`);
+
+      const card = renderCard(item);
+      list.insertBefore(card, list.firstChild);
+      if (list.children.length > 20) list.removeChild(list.lastChild);
+
+      if (item.relevant && item.companies.length > 0) {
+        if (item.companies.some(c => c.direction === 'up')) stats.up++;
+        if (item.companies.some(c => c.direction === 'down')) stats.down++;
+        updateStats();
+
+        if (token && chatId) {
+          const msg = buildTelegramMessage(item);
+          const sent = await sendTelegram(token, chatId, msg);
+          if (sent) {
+            stats.sent++;
+            updateStats();
+            const box = card.querySelector('.analysis-box');
+            if (box) {
+              const el = document.createElement('div');
+              el.className = 'telegram-sent';
+              el.innerHTML = '✅ Alerta enviado ao Telegram';
+              box.appendChild(el);
+            }
+            log(`✅ Alerta enviado: ${item.title.slice(0,40)}...`, 'success');
+          }
+        } else {
+          log('⚠️ Configure Token e Chat ID para enviar alertas', 'info');
+        }
+      } else {
+        log(`  → Sem impacto relevante identificado.`);
+      }
+    }
+
+    setStatus(isMonitoring ? 'Monitorando — ' + new Date().toLocaleTimeString('pt-BR') : 'Aguardando', isMonitoring);
+
+  } catch (e) {
+    log(`❌ Erro: ${e.message}`, 'error');
+    setStatus('Erro — tentando novamente...', isMonitoring);
+  }
+}
+
+// ─── Start / Stop ────────────────────────────────────────
+async function startMonitoring() {
+  const geminiKey = document.getElementById('geminiKey').value.trim();
+  const token = document.getElementById('telegramToken').value.trim();
+  const chatId = document.getElementById('chatId').value.trim();
+
+  if (!geminiKey) {
+    alert('Por favor, preencha a Chave da API Google Gemini!\nObtê-la gratuitamente em: aistudio.google.com/apikey');
+    return;
+  }
+  if (!token || !chatId) {
+    alert('Por favor, preencha o Token do Bot e o Chat ID do Telegram!');
+    return;
+  }
+
+  isMonitoring = true;
+  document.getElementById('startBtn').style.display = 'none';
+  document.getElementById('stopBtn').style.display = 'flex';
+  setStatus('Monitorando', true);
+  log('✅ Monitoramento iniciado! Gemini buscando notícias ao vivo...', 'success');
+
+  await scanNow();
+
+  const interval = parseInt(document.getElementById('intervalSelect').value);
+  monitorInterval = setInterval(scanNow, interval);
+}
+
+function stopMonitoring() {
+  if (monitorInterval) clearInterval(monitorInterval);
+  isMonitoring = false;
+  monitorInterval = null;
+  document.getElementById('startBtn').style.display = 'flex';
+  document.getElementById('stopBtn').style.display = 'none';
+  setStatus('Pausado', false);
+  log('⏹ Monitoramento pausado.', 'info');
+}
+
+// ─── Test Telegram ───────────────────────────────────────
+async function testTelegram() {
+  const token = document.getElementById('telegramToken').value.trim();
+  const chatId = document.getElementById('chatId').value.trim();
+  if (!token || !chatId) { alert('Preencha o Token e o Chat ID primeiro!'); return; }
+  log('📲 Enviando mensagem de teste...', 'info');
+  const msg = `✅ <b>StockPulse Conectado!</b>\n\nBot configurado com sucesso.\nAlertas de ações serão enviados aqui.\n\n🤖 <i>Powered by Google Gemini</i>`;
+  const ok = await sendTelegram(token, chatId, msg);
+  if (ok) {
+    log('✅ Mensagem de teste enviada!', 'success');
+    alert('✅ Mensagem enviada! Verifique seu Telegram.');
+  } else {
+    alert('❌ Erro ao enviar. Verifique o Token e Chat ID.');
+  }
+}
+
+
+</script>
+</body>
+</html>
